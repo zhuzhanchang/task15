@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+    <style>
+        #table-wrapper {
+            width: 1200px;
+            position: relative;
+        }
+        .table {
+            text-align: center;
+            width:100%; 
+            border-collapse: collapse;           
+        }
+        .table thead {
+            background-color:#cccccc;
+            height:25px;
+            line-height:150%;
+        }
+        .table tbody {
+            background-color:#ffffff;
+            height:25px;
+            line-height:150%;
+        } 
+    </style>
+    <script src="ife31data.js"></script>   
+</head>
+<body>
+    <div id="select-wrapper">
+        <div id="region-radio-wrapper">
+            <span>全选</span><input id="region-all" type="checkbox">
+            <span class="region-value">华东</span><input class="region-item" type="checkbox">
+            <span class="region-value">华南</span><input class="region-item" type="checkbox">
+            <span class="region-value">华北</span><input class="region-item" type="checkbox">
+        </div>
+        <div id="product-radio-wrapper">
+            <span>全选</span><input id="product-all" type="checkbox">
+            <span class="product-value">手机</span><input class="product-item" type="checkbox">
+            <span class="product-value">笔记本</span><input class="product-item" type="checkbox">
+            <span class="product-value">智能音箱</span><input class="product-item" type="checkbox">
+        </div>
+    </div>
+    <canvas id="bar" width="550" height="300"></canvas>
+    <canvas id="line" width="550" height="300"></canvas>
+    <div id="table-wrapper">
+    </div>  
+     
+<script>
+    (function() {
+        var table = {
+            theadData: theadData,
+            sourceData: sourceData,
+            newRegion: "",
+            newProduct: "",
+            data: [],
+            arr: [],
+            temJson: {},
+            regionArr: ["华东", "华北", "华南"],
+            productArr: ["手机", "笔记本", "智能音箱"],
+            allId: "",
+            itemClass: "",
+            month: ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二","单位/月"],
+            canvasData: [120, 100, 140, 160, 180, 185, 190, 210, 230, 245, 255, 270],
+            init: function() {    //初始化页面
+                this.elements();
+                this.data();
+                this.createTableHead();                
+                this.regionInputChange();
+                this.productInputChange();
+                this.getCanvasData();
+                this.changeTd();
+                this.getHash();
+            },
+            elements: function() {   //获取元素
+                this.tableWrapper = document.getElementById("table-wrapper");
+                this.selectWrapper = document.getElementById("select-wrapper");
+                this.oTable = document.createElement("table");
+                this.aTbody = document.createElement("tbody"); 
+                this.regionItem = document.getElementsByClassName("region-item");
+                this.productItem = document.getElementsByClassName("product-item");
+                this.regionRadioWrapper = document.getElementById("region-radio-wrapper");
+                this.regionInput = this.regionRadioWrapper.getElementsByTagName("input");
+                this.productRadioWrapper = document.getElementById("product-radio-wrapper");
+                this.productInput = this.productRadioWrapper.getElementsByTagName("input");
+                this.regionval = document.getElementsByClassName("region-value");
+                this.productval = document.getElementsByClassName("product-value");
+            },
+            data: function() {   //本地数据存在时用本地数据，不存在用原始数据
+                if(window.localStorage.getItem("data")) {
+                    var getLocalData = window.localStorage.getItem("data");
+                    this.sourceData = JSON.parse(getLocalData);
+                } 
+                this.data = this.sourceData;
+            },
+            createTableHead: function() {   //创建表格及表头          
+                this.oTable.classList.add("table")     
+                var aThead = document.createElement("thead");
+                var aTr = document.createElement("tr");
+                for(var i = 0; i < this.theadData.length; i++) {
+                    var aTh = document.createElement("th");
+                    aTh.innerHTML = this.theadData[i];
+                    aTr.appendChild(aTh);
+                };
+                aThead.appendChild(aTr);
+                this.oTable.appendChild(aThead);
+                this.tableWrapper.appendChild(this.oTable);
+            },
+            createTableBody: function() {   //创建表格内容                                  
+                this.aTbody.innerHTML = "";
+                var n = 0;
+                var onOff = true;
+                for(var i = 0; i < this.data.length; i++) {
+                    var aTr = document.createElement("tr");
+                    var aTd1 = document.createElement("td");
+                    var aTd2 = document.createElement("td");
+                    aTr.index = i;
+                    if(this.regionArr.length < this.productArr.length && this.regionArr.length == 1) {
+                        if(onOff) {
+                            aTd2.innerHTML = this.data[i].region;
+                            aTd2.rowSpan = this.productArr.length;
+                            aTr.appendChild(aTd2);
+                            onOff = !onOff;
+                        }      
+                        aTd1.innerHTML = this.data[i].product;
+                        aTr.appendChild(aTd1);                  
+                    } else {
+                        if(n == 0) {
+                            aTd1.innerHTML = this.data[i].product;
+                            aTd1.rowSpan = this.regionArr.length;
+                            aTr.appendChild(aTd1);
+                            n = this.regionArr.length;
+                        }                        
+                        aTd2.innerHTML = this.data[i].region;
+                        aTr.appendChild(aTd2);
+                        n--;
+                    } 
+                    for(var j = 0; j < this.data[i].sale.length; j++) {
+                        var aTd = document.createElement("td");
+                        aTd.innerHTML = this.data[i].sale[j];
+                        aTd.index = j;
+                        aTr.appendChild(aTd);
+                    }
+                    this.aTbody.appendChild(aTr);
+                };                
+                this.oTable.appendChild(this.aTbody);
+            },
+            regionInputChange: function() {   //获取选中的地区
+                var This = this;
+                for(var i = 0; i < this.regionInput.length; i++) {
+                    this.regionInput[i].onchange = function() {
+                        This.allId = "region-all";
+                        This.itemClass = "region-item"
+                        This.checkChange(this);
+                        This.regionArr = [];
+                        for(var j = 0; j < This.regionItem.length; j++) {                            
+                            if(This.regionItem[j].checked) {
+                                var value = This.regionval[j].innerHTML;                        
+                                This.regionArr.push(value)
+                            }       
+                        } 
+                        This.getData();                   
+                    }
+                }                
+            },
+            productInputChange: function() {   //获取选中的产品
+                var This = this;
+                for(var i = 0; i < this.productInput.length; i++) {
+                    this.productInput[i].onchange = function() {
+                        This.allId = "product-all";
+                        This.itemClass = "product-item"
+                        This.checkChange(this);
+                        This.productArr = [];
+                        for(var j = 0; j < This.productItem.length; j++) {
+                            if(This.productItem[j].checked) {
+                                var value = This.productval[j].innerHTML;
+                                This.productArr.push(value)
+                            }
+                        } 
+                        This.getData();                        
+                    }
+                }          
+            },
+            checkChange: function(that) {   //选择时选择按钮的变化
+                var checkAll = document.getElementById(this.allId)
+                var checkItem = document.getElementsByClassName(this.itemClass);   
+                   
+                if(that.id == this.allId) {
+                    for(var i = 0; i < checkItem.length; i++) {
+                        checkItem[i].checked = that.checked;
+                    }
+                    checkItem[0].checked = true;
+                } else if(that.className == this.itemClass) {
+                    this.arr = [];  
+                    this.check(checkAll, checkItem);
+                    var onOff = this.arr.some(function(item) {
+                        return item.checked;
+                    })
+                    if(!onOff) {
+                        that.checked = true;
+                    }
+                }                          
+            },
+            check: function(allId, itemClass) {   //全选和单选的对应
+                for(var i = 0; i < itemClass.length; i++) {
+                    this.arr.push(itemClass[i])
+                }
+                allId.checked = this.arr.every(function(item) {
+                    return item.checked;
+                })
+            },
+            getData: function() {   //根据获取的地区和产品得到要渲染的数据
+                this.data = [];
+                var temData = [];
+                for(var i = 0; i < this.regionArr.length; i++) {
+                    var temVal = this.regionArr[i];
+                    for(var j = 0; j < this.sourceData.length; j++) {
+                        if(this.sourceData[j].region == temVal) {
+                            temData.push(this.sourceData[j])
+                        }
+                    }
+                }
+                for(var i = 0; i < this.productArr.length; i++) {
+                    var temVal = this.productArr[i];
+                    for(var j = 0; j < temData.length; j++) {
+                        if(temData[j].product == temVal) {
+                            this.data.push(temData[j])
+                        }
+                    }
+                }
+                this.setHash();   
+                this.localData();
+                this.createTableBody();
+                this.getCanvasData();               
+            },
+            createBar: function() {   //创建柱状图
+                var c = document.getElementById("bar");
+                var oC = c.getContext("2d");
+
+                //设置远点坐标：
+                var oX = 0.1*c.width;
+                var oY = 0.9*c.height;
+                //设置坐标轴的长度：
+                var xWidth = 0.8*c.width;
+                var yHeight = 0.8*c.height;
+                oC.clearRect(0, 0, c.width, c.height)
+
+                oC.moveTo(0.1*c.width, 0.1*c.height);
+                oC.lineTo(0.1*c.width, 0.9*c.height);
+                oC.lineTo(0.9*c.width, 0.9*c.height);
+                oC.moveTo(0.09*c.width, 0.12*c.height);
+                oC.lineTo(0.1*c.width, 0.1*c.height);
+                oC.lineTo(0.11*c.width, 0.12*c.height);
+                oC.moveTo(0.88*c.width, 0.89*c.height);
+                oC.lineTo(0.9*c.width, 0.9*c.height);
+                oC.lineTo(0.88*c.width, 0.91*c.height);
+                oC.strokeStyle = "black";
+                oC.lineWidth=2;
+                oC.stroke();
+                oC.beginPath();
+                var xScale = xWidth/(this.month.length + 1);
+                for(var i = 0; i < this.month.length; i++) {
+                    oC.font="8pt Calibri";
+                    oC.fillText(this.month[i], oX + xScale*(i+1), 0.95*c.height)
+                }
+                var yScale = yHeight/7;
+                for(var i = 0; i < 7; i++) {
+                    oC.font="8pt Calibri";
+                    oC.fillText(50*i, 0.06*c.width, oY - yScale*i )
+                }
+
+                oC.beginPath();
+                for(var i = 0; i < this.canvasData.length; i++) {
+                    oC.strokeRect(oX + xScale*(i+1), oY - this.canvasData[i]/350*yHeight, 10, this.canvasData[i]/350*yHeight)
+                }
+            },
+            createLine: function() {   //创建折线图
+                var c = document.getElementById("line");
+                var oC = c.getContext("2d");
+
+                //设置远点坐标：
+                var oX = 0.1*c.width;
+                var oY = 0.9*c.height;
+                //设置坐标轴的长度：
+                var xWidth = 0.8*c.width;
+                var yHeight = 0.8*c.height;
+                oC.clearRect(0, 0, c.width, c.height)
+
+                oC.moveTo(0.1*c.width, 0.1*c.height);
+                oC.lineTo(0.1*c.width, 0.9*c.height);
+                oC.lineTo(0.9*c.width, 0.9*c.height);
+                oC.moveTo(0.09*c.width, 0.12*c.height);
+                oC.lineTo(0.1*c.width, 0.1*c.height);
+                oC.lineTo(0.11*c.width, 0.12*c.height);
+                oC.moveTo(0.88*c.width, 0.89*c.height);
+                oC.lineTo(0.9*c.width, 0.9*c.height);
+                oC.lineTo(0.88*c.width, 0.91*c.height);
+                oC.strokeStyle = "black";
+                oC.lineWidth=2;
+                oC.stroke();
+                oC.beginPath();
+                var xScale = xWidth/(this.month.length + 1);
+                for(var i = 0; i < this.month.length; i++) {
+                    oC.font="8pt Calibri";
+                    oC.fillText(this.month[i], oX + xScale*(i+1), 0.95*c.height)
+                }
+                var yScale = yHeight/7;
+                for(var i = 0; i < 7; i++) {
+                    oC.font="8pt Calibri";
+                    oC.fillText(50*i, 0.06*c.width, oY - yScale*i )
+                }
+                oC.beginPath();
+                oC.moveTo(oX + xScale, oY - this.canvasData[0]/350*yHeight)
+                oC.arc(oX + xScale, oY - this.canvasData[0]/350*yHeight,2,0,2*Math.PI);
+                oC.stroke();
+
+                for(var i = 1; i < this.canvasData.length; i++) {
+                    oC.lineTo(oX + xScale*(i+1), oY - this.canvasData[i]/350*yHeight)
+                    oC.stroke();
+                    oC.beginPath();
+                    oC.arc(oX + xScale*(i+1), oY - this.canvasData[i]/350*yHeight,2,0,2*Math.PI);
+                    oC.stroke();
+                    if(i == this.canvasData.length - 1) {
+                        oC.beginPath();
+                    }
+                } 
+            },
+            getCanvasData: function() {   //获取创建图像的数据
+                var temTr = this.aTbody.getElementsByTagName("tr");
+                var This = this;
+                for(var i = 0; i < temTr.length; i++) {
+                    temTr[i].onmouseover = function() {
+                        This.canvasData = This.data[this.index].sale;
+                        This.createBar();
+                        This.createLine();
+                    }
+                };
+                this.createBar();
+                this.createLine();
+            },
+            changeTd: function() {   //点击修改数据
+                var This = this;
+                this.aTbody.onclick = function(ev) {
+                    var temDiv = document.createElement("div");
+                    var temTd = ev.target.index;
+                    var temTr = ev.target.parentNode.index;
+                    temDiv.innerHTML = `<input type="text"><input type="button" value="确定"><input type="button" value="取消">`;
+                    temDiv.style.height = ev.target.offsetHeight + "px";
+                    temDiv.style.position = "absolute";
+                    temDiv.style.top = ev.target.offsetTop + "px";
+                    temDiv.style.left = ev.target.offsetLeft + "px";
+                    This.tableWrapper.appendChild(temDiv);
+                    var temInput = temDiv.getElementsByTagName("input");
+                    temInput[0].style.width = ev.target.offsetWidth + "px";
+                    temInput[0].focus()
+                    temInput[0].onblur = temInput[1].onclick = function() {  
+                        if(!parseFloat(temInput[0].value) && temInput[0].value != "") {
+                            alert("请输入一个数字！");
+                            temInput[0].value = "";
+                         
+                        } else if(temInput[0].value == "") {
+                            temDiv.parentNode.removeChild(temDiv);
+                            
+                        } else {
+                            This.data[temTr].sale[temTd] = parseInt(temInput[0].value);
+                            temDiv.parentNode.removeChild(temDiv);   
+                            This.getData();
+                        }                    
+                    };
+                    temInput[2].onclick = function() {                        
+                        temDiv.parentNode.removeChild(temDiv);
+                    }
+                }
+            },
+            localData: function() {   //数据存到本地
+                for(var i = 0; i < this.data.length; i++) {
+                    for(var j = 0; j < this.sourceData.length; j++) {
+                        if(this.data[i].product == this.sourceData[j].product && this.data[i].region == this.sourceData[j].region) {
+                            this.sourceData[j].sale = this.data[i].sale
+                        }
+                    }
+                };
+                var str_jsonData = JSON.stringify(this.sourceData);
+	            window.localStorage.setItem("data", str_jsonData);
+            },
+            setHash: function() {   //设置hash值
+                var hashVal = "";
+                for(var i = 0; i < this.regionItem.length; i++) {
+                    if(this.regionItem[i].checked) {
+                        hashVal += 'y';
+                    } else {
+                        hashVal += 'n';
+                    }
+                }
+                for(var i = 0; i < this.productItem.length; i++) {
+                    if(this.productItem[i].checked) {
+                        hashVal += 'y';
+                    } else {
+                        hashVal += 'n';
+                    }
+                }              
+                window.location.hash = hashVal;             
+            },
+            getHash: function() {   //复制url时根据hash值构建页面
+                if(window.location.hash) {
+                    var temVal = window.location.hash;
+                    temVal = temVal.slice(1);
+                    var arr = temVal.split("");  
+                    this.regionArr = [];
+                    this.productArr = [];
+                    for(var i = 0; i < this.regionItem.length; i++) {
+                        if(arr[i] == 'y') {
+                            this.regionItem[i].checked = true;
+                            this.regionArr.push(this.regionval[i].innerHTML)
+                        } else if (arr[i] == 'n') {
+                            this.regionItem[i].checked = false;
+                        }
+                    }
+                    for(var i = this.regionItem.length; i < arr.length; i++) {
+                        if(arr[i] == 'y') {
+                            this.productItem[i - this.regionItem.length].checked = true;
+                            this.productArr.push(this.productval[i - this.regionItem.length].innerHTML)
+                        } else if (arr[i] == 'n') {
+                            this.productItem[i - this.regionItem.length].checked = false;
+                        }
+                    } 
+                    this.getData()
+                } else {
+                    this.createTableBody(); 
+                }
+            }
+        }
+        table.init()
+    })()
+</script>
+</body>
+</html>
